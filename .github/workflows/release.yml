@@ -55,7 +55,7 @@ jobs:
           git config --local user.name "GitHub Action"
           git add pom.xml
           git commit -m "chore: bump version to ${{ steps.increment.outputs.new_version }}"
-          git push
+          git push https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:main
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
