@@ -1,5 +1,7 @@
 package ch.theforce.compareDbs
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger as LogbackLogger
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.flag
@@ -7,12 +9,15 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.int
 import com.mongodb.client.MongoCollection
 import org.bson.Document
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
 import kotlin.system.exitProcess
+
+private val logger = LoggerFactory.getLogger("ch.theforce.compareDbs.Main")
 
 /**
  * Entry point for the MongoDB database comparison tool.
@@ -56,6 +61,10 @@ private class CompareDbsCommand : CliktCommand(
         .int().default(4)
     private val saveReport by option("--save-report", help = "Save the comparison result document to MongoDB A (_comparisonReports collection)")
         .flag(default = false)
+    private val verbose by option("--verbose", "-v", help = "Enable INFO-level logging")
+        .flag(default = false)
+    private val debug by option("--debug", help = "Enable DEBUG-level logging (implies --verbose)")
+        .flag(default = false)
 
     override fun run() {
         if (uriA.isBlank() || uriB.isBlank()) {
@@ -79,8 +88,17 @@ private class CompareDbsCommand : CliktCommand(
             exitProcess(2)
         }
 
+        // Configure log level based on flags
+        val rootLogger = LoggerFactory.getLogger(LogbackLogger.ROOT_LOGGER_NAME) as LogbackLogger
+        rootLogger.level = when {
+            debug   -> Level.DEBUG
+            verbose -> Level.INFO
+            else    -> Level.WARN
+        }
+
         val correlationId = UUID.randomUUID().toString()
         echo("Run ID: $correlationId")
+        logger.info("Starting comparison run {}", correlationId)
 
         // Connect
         echo("Connecting to databases…")
@@ -95,12 +113,17 @@ private class CompareDbsCommand : CliktCommand(
         try {
             echo("A: ${connA.displayUri}")
             echo("B: ${connB.displayUri}")
+            logger.info("Connected to A: {}", connA.displayUri)
+            logger.info("Connected to B: {}", connB.displayUri)
 
             // Enumerate collections & views
             val namesA = getCollectionNames(connA.database)
             val namesB = getCollectionNames(connB.database)
+            logger.debug("Raw names from A: {}", namesA.keys)
+            logger.debug("Raw names from B: {}", namesB.keys)
 
             val filter = collectionsFilter?.split(",")?.map { it.trim() }?.toSet()
+            if (filter != null) logger.info("Collection filter applied: {}", filter)
 
             val collectionsA = namesA.filter { (_, t) -> t == "collection" }.keys
                 .let { if (filter != null) it.filter { n -> n in filter } else it.toList() }
@@ -115,6 +138,8 @@ private class CompareDbsCommand : CliktCommand(
             val inBoth = setA.intersect(setB).sorted()
 
             echo("Collections: ${setA.size} in A, ${setB.size} in B, ${inBoth.size} in both — comparing with sample-size=$sampleSize, parallelism=$parallelism")
+            logger.info("Only in A: {}", setA - setB)
+            logger.info("Only in B: {}", setB - setA)
 
             // Compare collections in parallel using JDK 21 virtual threads
             val executor = Executors.newVirtualThreadPerTaskExecutor()
@@ -197,6 +222,9 @@ private fun compareCollection(
     sampleSize: Int,
     executor: java.util.concurrent.ExecutorService
 ): CollectionResult {
+    logger.info("Comparing collection: {}", name)
+    val start = System.currentTimeMillis()
+
     // Sample schemas in parallel
     val futureSchemaA = executor.submit<Pair<Map<String, Set<String>>, Int>> { inferSchema(collA, sampleSize) }
     val futureSchemaB = executor.submit<Pair<Map<String, Set<String>>, Int>> { inferSchema(collB, sampleSize) }
@@ -206,9 +234,17 @@ private fun compareCollection(
 
     val totalA = collA.countDocuments()
     val totalB = collB.countDocuments()
+    logger.debug("Collection {}: totalDocs A={} B={}, sampled A={} B={}", name, totalA, totalB, sampledA, sampledB)
 
     val schemaDiff = compareSchemas(schemaA, schemaB)
     val indexDiff  = compareIndexes(getIndexes(collA), getIndexes(collB))
+
+    logger.info(
+        "Collection {} done in {}ms — schema diffs: {}, index diffs: {}",
+        name, System.currentTimeMillis() - start,
+        schemaDiff.fieldsOnlyInA.size + schemaDiff.fieldsOnlyInB.size + schemaDiff.typeChanges.size,
+        indexDiff.onlyInA.size + indexDiff.onlyInB.size + indexDiff.optionChanges.size
+    )
 
     return CollectionResult(
         name = name,
