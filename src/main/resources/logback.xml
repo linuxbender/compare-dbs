@@ -1,0 +1,15 @@
+<configuration>
+    <appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
+        <target>System.err</target>
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level %-30logger{30} %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Suppress noisy MongoDB driver INFO logs unless debug is explicitly requested -->
+    <logger name="org.mongodb.driver" level="WARN"/>
+
+    <root level="WARN">
+        <appender-ref ref="STDERR"/>
+    </root>
+</configuration>

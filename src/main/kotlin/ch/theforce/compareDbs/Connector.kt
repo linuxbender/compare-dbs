@@ -4,7 +4,10 @@ import com.mongodb.client.MongoClient
 import com.mongodb.client.MongoClients
 import com.mongodb.client.MongoDatabase
 import org.bson.Document
+import org.slf4j.LoggerFactory
 import java.net.URI
+
+private val logger = LoggerFactory.getLogger("ch.theforce.compareDbs.Connector")
 
 /**
  * Holds a connected MongoDB client together with the target database handle.
@@ -32,6 +35,7 @@ data class DatabaseConnection(
  */
 fun connect(uri: String): DatabaseConnection {
     val displayUri = redactPassword(uri)
+    logger.debug("Connecting to: {}", displayUri)
 
     val client = MongoClients.create(uri)
 
@@ -47,6 +51,7 @@ fun connect(uri: String): DatabaseConnection {
     // Ping to verify connectivity early, before any sampling begins
     try {
         database.runCommand(Document("ping", 1))
+        logger.debug("Ping successful: {} (db={})", displayUri, dbName)
     } catch (e: Exception) {
         client.close()
         throw RuntimeException("Cannot connect to $displayUri: ${e.message}", e)

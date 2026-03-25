@@ -4,7 +4,10 @@ import com.mongodb.client.MongoCollection
 import org.bson.Document
 import org.bson.types.Decimal128
 import org.bson.types.ObjectId
+import org.slf4j.LoggerFactory
 import java.util.Date
+
+private val logger = LoggerFactory.getLogger("ch.theforce.compareDbs.SchemaInferrer")
 
 /** Maximum number of array elements inspected per field during schema extraction. */
 private const val MAX_ARRAY_ELEMENTS = 5
@@ -29,17 +32,21 @@ private const val MAX_ARRAY_ELEMENTS = 5
  */
 fun inferSchema(collection: MongoCollection<Document>, sampleSize: Int): Pair<Map<String, Set<String>>, Int> {
     val totalDocs = collection.countDocuments()
+    logger.debug("inferSchema: totalDocs={}, sampleSize={}", totalDocs, sampleSize)
 
     if (totalDocs == 0L) {
+        logger.debug("inferSchema: collection is empty, skipping")
         return Pair(emptyMap(), 0)
     }
 
     val sampled = mutableListOf<Document>()
 
     if (totalDocs <= sampleSize) {
+        logger.debug("inferSchema: full scan (totalDocs <= sampleSize)")
         collection.find().forEach { sampled += it }
     } else {
         val interval = totalDocs / sampleSize
+        logger.debug("inferSchema: interval sampling, interval={}", interval)
         var counter = 0L
         collection.find().forEach { doc ->
             if (counter % interval == 0L && sampled.size < sampleSize) {
@@ -48,6 +55,7 @@ fun inferSchema(collection: MongoCollection<Document>, sampleSize: Int): Pair<Ma
             counter++
         }
     }
+    logger.debug("inferSchema: sampled {} docs", sampled.size)
 
     val schema = mutableMapOf<String, MutableSet<String>>()
     for (doc in sampled) {
