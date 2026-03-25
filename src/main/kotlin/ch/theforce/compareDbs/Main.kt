@@ -62,6 +62,22 @@ private class CompareDbsCommand : CliktCommand(
             echo("ERROR: --uri-a and --uri-b are required.", err = true)
             exitProcess(2)
         }
+        if (!isValidMongoUri(uriA)) {
+            echo("ERROR: --uri-a must start with mongodb:// or mongodb+srv://", err = true)
+            exitProcess(2)
+        }
+        if (!isValidMongoUri(uriB)) {
+            echo("ERROR: --uri-b must start with mongodb:// or mongodb+srv://", err = true)
+            exitProcess(2)
+        }
+        if (sampleSize < 1) {
+            echo("ERROR: --sample-size must be at least 1 (got $sampleSize)", err = true)
+            exitProcess(2)
+        }
+        if (parallelism < 1) {
+            echo("ERROR: --parallelism must be at least 1 (got $parallelism)", err = true)
+            exitProcess(2)
+        }
 
         val correlationId = UUID.randomUUID().toString()
         echo("Run ID: $correlationId")
@@ -157,6 +173,9 @@ private class CompareDbsCommand : CliktCommand(
         }
     }
 }
+
+internal fun isValidMongoUri(uri: String): Boolean =
+    uri.startsWith("mongodb://") || uri.startsWith("mongodb+srv://")
 
 /**
  * Compares a single collection between the two databases.
