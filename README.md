@@ -8,12 +8,12 @@ Compares schema, field types, and indexes between two MongoDB databases.
 mvn package
 ```
 
-Produces `target/compare-dbs.jar`.
+Produces `target/compare-dbs-*.jar`.
 
 ## Usage
 
 ```bash
-java -jar target/compare-dbs.jar \
+java -jar compare-dbs-1.0.0.jar \
   --uri-a "mongodb://localhost:27017/db_old" \
   --uri-b "mongodb://localhost:27017/db_new"
 ```
