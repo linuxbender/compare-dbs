@@ -35,8 +35,14 @@ private val logger = LoggerFactory.getLogger("ch.theforce.compareDbs.Main")
  *   [--output report.html] \
  *   [--collections currency,accounts] \
  *   [--parallelism 4] \
- *   [--save-report]
+ *   [--save-report] \
+ *   [--verbose|-v] \
+ *   [--debug]
  * ```
+ *
+ * Logging options:
+ * - `--verbose` / `-v` — enables INFO-level logging to stderr
+ * - `--debug`          — enables DEBUG-level logging to stderr (implies --verbose)
  *
  * Exit codes:
  * - `0` — no differences found
